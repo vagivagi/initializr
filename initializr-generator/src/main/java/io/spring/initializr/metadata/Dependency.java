@@ -425,6 +425,7 @@ public class Dependency extends MetadataElement implements Describable {
 		 */
 		private String version;
 
+		@JsonIgnore
 		private VersionRange range;
 
 		public String getGroupId() {
@@ -482,13 +483,19 @@ public class Dependency extends MetadataElement implements Describable {
 	}
 
 	public static Dependency withId(String id, String groupId, String artifactId,
-			String version) {
+			String version, String scope) {
 		Dependency dependency = new Dependency();
 		dependency.setId(id);
 		dependency.groupId = groupId;
 		dependency.artifactId = artifactId;
 		dependency.version = version;
+		dependency.scope = (scope != null ? scope : SCOPE_COMPILE);
 		return dependency;
+	}
+
+	public static Dependency withId(String id, String groupId, String artifactId,
+			String version) {
+		return withId(id, groupId, artifactId, version, null);
 	}
 
 	public static Dependency withId(String id, String groupId, String artifactId) {

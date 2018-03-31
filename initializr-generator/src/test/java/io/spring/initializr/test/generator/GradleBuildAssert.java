@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,7 @@ package io.spring.initializr.test.generator;
 
 import io.spring.initializr.generator.ProjectRequest;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Very simple assertions for the gradle build.
@@ -40,10 +39,6 @@ public class GradleBuildAssert {
 	public GradleBuildAssert validateProjectRequest(ProjectRequest request) {
 		return hasVersion(request.getVersion()).hasBootVersion(request.getBootVersion())
 				.hasJavaVersion(request.getJavaVersion());
-	}
-
-	public GradleBuildAssert hasArtifactId(String artifactId) {
-		return contains("baseName = '" + artifactId + "'");
 	}
 
 	public GradleBuildAssert hasVersion(String version) {
@@ -67,14 +62,17 @@ public class GradleBuildAssert {
 	}
 
 	public GradleBuildAssert contains(String expression) {
-		assertTrue(expression + " has not been found in gradle build " + content,
-				content.contains(expression));
+		assertThat(this.content).contains(expression);
 		return this;
 	}
 
 	public GradleBuildAssert doesNotContain(String expression) {
-		assertFalse(expression + " is not expected in gradle build " + content,
-				content.contains(expression));
+		assertThat(this.content).doesNotContain(expression);
 		return this;
 	}
+
+	public String getGradleBuild() {
+		return this.content;
+	}
+
 }

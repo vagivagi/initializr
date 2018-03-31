@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ import java.util.Properties;
 import org.junit.Test;
 
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
-import org.springframework.boot.bind.PropertiesConfigurationFactory;
-import org.springframework.core.env.MutablePropertySources;
-import org.springframework.core.env.PropertiesPropertySource;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.ConfigurationPropertySource;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
@@ -33,6 +33,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 /**
+ * Tests for {@link InitializrMetadataBuilder}.
+ * 
  * @author Stephane Nicoll
  */
 public class InitializrMetadataBuilderTests {
@@ -163,8 +165,6 @@ public class InitializrMetadataBuilderTests {
 		assertEquals(defaultEnv.getFallbackApplicationName(),
 				actualEnv.getFallbackApplicationName());
 		assertEquals(defaultEnv.isForceSsl(), actualEnv.isForceSsl());
-		assertEquals(defaultEnv.getKotlin().getVersion(),
-				actualEnv.getKotlin().getVersion());
 	}
 
 	@Test
@@ -184,7 +184,7 @@ public class InitializrMetadataBuilderTests {
 				actualEnv.getSpringBootMetadataUrl());
 		assertEquals("FooBarApplication", actualEnv.getFallbackApplicationName());
 		assertEquals(false, actualEnv.isForceSsl());
-		assertEquals("1.0.0-beta-2423", actualEnv.getKotlin().getVersion());
+		assertEquals("1.0.0-beta-2423", actualEnv.getKotlin().getDefaultVersion());
 	}
 
 	@Test
@@ -208,19 +208,10 @@ public class InitializrMetadataBuilderTests {
 	}
 
 	private static InitializrProperties load(Resource resource) {
-		PropertiesConfigurationFactory<InitializrProperties> factory = new PropertiesConfigurationFactory<>(
-				InitializrProperties.class);
-		factory.setTargetName("initializr");
-		MutablePropertySources sources = new MutablePropertySources();
-		sources.addFirst(new PropertiesPropertySource("main", loadProperties(resource)));
-		factory.setPropertySources(sources);
-		try {
-			factory.afterPropertiesSet();
-			return factory.getObject();
-		}
-		catch (Exception e) {
-			throw new IllegalStateException("Could not create InitializrProperties", e);
-		}
+		ConfigurationPropertySource source = new MapConfigurationPropertySource(
+				loadProperties(resource));
+		Binder binder = new Binder(source);
+		return binder.bind("initializr", InitializrProperties.class).get();
 	}
 
 	private static Properties loadProperties(Resource resource) {

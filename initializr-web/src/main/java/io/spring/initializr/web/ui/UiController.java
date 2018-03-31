@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,22 +18,22 @@ package io.spring.initializr.web.ui;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.spring.initializr.metadata.Dependency;
 import io.spring.initializr.metadata.DependencyGroup;
 import io.spring.initializr.metadata.InitializrMetadataProvider;
 import io.spring.initializr.util.Version;
-import org.json.JSONObject;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -51,7 +51,7 @@ public class UiController {
 		this.metadataProvider = metadataProvider;
 	}
 
-	@RequestMapping(value = "/ui/dependencies", produces = "application/json")
+	@GetMapping(path = "/ui/dependencies", produces = "application/json")
 	public ResponseEntity<String> dependencies(
 			@RequestParam(required = false) String version) {
 		List<DependencyGroup> dependencyGroups = metadataProvider.get()
@@ -74,31 +74,31 @@ public class UiController {
 	}
 
 	private static String writeDependencies(List<DependencyItem> items) {
-		JSONObject json = new JSONObject();
-		List<Map<String, Object>> maps = new ArrayList<>();
+		ObjectNode json = JsonNodeFactory.instance.objectNode();
+		ArrayNode maps = JsonNodeFactory.instance.arrayNode();
 		items.forEach(d -> maps.add(mapDependency(d)));
-		json.put("dependencies", maps);
+		json.set("dependencies", maps);
 		return json.toString();
 	}
 
-	private static Map<String, Object> mapDependency(DependencyItem item) {
-		Map<String, Object> result = new HashMap<>();
+	private static ObjectNode mapDependency(DependencyItem item) {
+		ObjectNode node = JsonNodeFactory.instance.objectNode();
 		Dependency d = item.dependency;
-		result.put("id", d.getId());
-		result.put("name", d.getName());
-		result.put("group", item.group);
+		node.put("id", d.getId());
+		node.put("name", d.getName());
+		node.put("group", item.group);
 		if (d.getDescription() != null) {
-			result.put("description", d.getDescription());
+			node.put("description", d.getDescription());
 		}
 		if (d.getWeight() > 0) {
-			result.put("weight", d.getWeight());
+			node.put("weight", d.getWeight());
 		}
 		if (!CollectionUtils.isEmpty(d.getKeywords()) || !CollectionUtils.isEmpty(d.getAliases())) {
 			List<String> all = new ArrayList<>(d.getKeywords());
 			all.addAll(d.getAliases());
-			result.put("keywords", StringUtils.collectionToCommaDelimitedString(all));
+			node.put("keywords", StringUtils.collectionToCommaDelimitedString(all));
 		}
-		return result;
+		return node;
 	}
 
 	private static class DependencyItem {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,12 @@ package io.spring.initializr.web.autoconfigure;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.cache.configuration.MutableConfiguration;
 import javax.cache.expiry.CreatedExpiryPolicy;
 import javax.cache.expiry.Duration;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.spring.initializr.generator.ProjectGenerator;
 import io.spring.initializr.generator.ProjectRequestPostProcessor;
 import io.spring.initializr.generator.ProjectRequestResolver;
@@ -43,12 +45,15 @@ import org.springframework.boot.autoconfigure.cache.CacheAutoConfiguration;
 import org.springframework.boot.autoconfigure.cache.JCacheManagerCustomizer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.bind.RelaxedPropertyResolver;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.autoconfigure.web.client.RestTemplateAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.resource.ResourceUrlProvider;
 
 /**
@@ -64,7 +69,8 @@ import org.springframework.web.servlet.resource.ResourceUrlProvider;
  */
 @Configuration
 @EnableConfigurationProperties(InitializrProperties.class)
-@AutoConfigureAfter(CacheAutoConfiguration.class)
+@AutoConfigureAfter({ CacheAutoConfiguration.class, JacksonAutoConfiguration.class,
+		RestTemplateAutoConfiguration.class })
 public class InitializrAutoConfiguration {
 
 	private final List<ProjectRequestPostProcessor> postProcessors;
@@ -76,30 +82,6 @@ public class InitializrAutoConfiguration {
 	}
 
 	@Bean
-	public WebConfig webConfig() {
-		return new WebConfig();
-	}
-
-	@Bean
-	@ConditionalOnMissingBean
-	public MainController initializrMainController(
-			InitializrMetadataProvider metadataProvider,
-			TemplateRenderer templateRenderer,
-			ResourceUrlProvider resourceUrlProvider,
-			ProjectGenerator projectGenerator,
-			DependencyMetadataProvider dependencyMetadataProvider) {
-		return new MainController(metadataProvider, templateRenderer, resourceUrlProvider
-				, projectGenerator, dependencyMetadataProvider);
-	}
-
-	@Bean
-	@ConditionalOnMissingBean
-	public UiController initializrUiController(
-			InitializrMetadataProvider metadataProvider) {
-		return new UiController(metadataProvider);
-	}
-
-	@Bean
 	@ConditionalOnMissingBean
 	public ProjectGenerator projectGenerator() {
 		return new ProjectGenerator();
@@ -108,9 +90,8 @@ public class InitializrAutoConfiguration {
 	@Bean
 	@ConditionalOnMissingBean
 	public TemplateRenderer templateRenderer(Environment environment) {
-		RelaxedPropertyResolver resolver = new RelaxedPropertyResolver(environment,
-				"spring.mustache.");
-		boolean cache = resolver.getProperty("cache", Boolean.class, true);
+		Binder binder = Binder.get(environment);
+		boolean cache = binder.bind("spring.mustache.cache", Boolean.class).orElse(true);
 		TemplateRenderer templateRenderer = new TemplateRenderer();
 		templateRenderer.setCache(cache);
 		return templateRenderer;
@@ -130,10 +111,13 @@ public class InitializrAutoConfiguration {
 	@Bean
 	@ConditionalOnMissingBean(InitializrMetadataProvider.class)
 	public InitializrMetadataProvider initializrMetadataProvider(
-			InitializrProperties properties) {
+			InitializrProperties properties,
+			ObjectMapper objectMapper,
+			RestTemplateBuilder restTemplateBuilder) {
 		InitializrMetadata metadata = InitializrMetadataBuilder
 				.fromInitializrProperties(properties).build();
-		return new DefaultInitializrMetadataProvider(metadata, new RestTemplate());
+		return new DefaultInitializrMetadataProvider(metadata,
+				objectMapper, restTemplateBuilder.build());
 	}
 
 	@Bean
@@ -143,16 +127,47 @@ public class InitializrAutoConfiguration {
 	}
 
 	@Configuration
+	@ConditionalOnWebApplication
+	static class InitializrWebConfiguration {
+
+
+		@Bean
+		public InitializrWebConfig initializrWebConfig() {
+			return new InitializrWebConfig();
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		public MainController initializrMainController(
+				InitializrMetadataProvider metadataProvider,
+				TemplateRenderer templateRenderer,
+				ResourceUrlProvider resourceUrlProvider,
+				ProjectGenerator projectGenerator,
+				DependencyMetadataProvider dependencyMetadataProvider) {
+			return new MainController(metadataProvider, templateRenderer, resourceUrlProvider
+					, projectGenerator, dependencyMetadataProvider);
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		public UiController initializrUiController(
+				InitializrMetadataProvider metadataProvider) {
+			return new UiController(metadataProvider);
+		}
+
+	}
+
+	@Configuration
 	@ConditionalOnClass(javax.cache.CacheManager.class)
-	static class CacheConfiguration {
+	static class InitializrCacheConfiguration {
 
 		@Bean
 		public JCacheManagerCustomizer initializrCacheManagerCustomizer() {
 			return cm -> {
-				cm.createCache("initializr", config().setExpiryPolicyFactory(
+				cm.createCache("initializr.metadata", config().setExpiryPolicyFactory(
 						CreatedExpiryPolicy.factoryOf(Duration.TEN_MINUTES)));
-				cm.createCache("dependency-metadata", config());
-				cm.createCache("project-resources", config());
+				cm.createCache("initializr.dependency-metadata", config());
+				cm.createCache("initializr.project-resources", config());
 			};
 		}
 

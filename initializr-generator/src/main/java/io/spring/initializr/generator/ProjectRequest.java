@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -196,7 +196,7 @@ public class ProjectRequest extends BasicProjectRequest {
 
 		initializeRepositories(metadata, requestedVersion);
 
-		initializeProperties(metadata);
+		initializeProperties(metadata, requestedVersion);
 
 		afterResolution(metadata);
 	}
@@ -219,12 +219,14 @@ public class ProjectRequest extends BasicProjectRequest {
 		}));
 	}
 
-	protected void initializeProperties(InitializrMetadata metadata) {
+	protected void initializeProperties(InitializrMetadata metadata,
+			Version requestedVersion) {
+		String kotlinVersion = metadata.getConfiguration().getEnv().getKotlin()
+				.resolveKotlinVersion(requestedVersion);
 		if ("gradle".equals(build)) {
 			buildProperties.getGradle().put("springBootVersion", this::getBootVersion);
 			if ("kotlin".equals(getLanguage())) {
-				buildProperties.getGradle().put("kotlinVersion", () -> metadata
-						.getConfiguration().getEnv().getKotlin().getVersion());
+				buildProperties.getGradle().put("kotlinVersion", () -> kotlinVersion);
 			}
 		}
 		else {
@@ -235,21 +237,20 @@ public class ProjectRequest extends BasicProjectRequest {
 					this::getJavaVersion);
 			if ("kotlin".equals(getLanguage())) {
 				buildProperties.getVersions().put(new VersionProperty("kotlin.version"),
-						() -> metadata.getConfiguration().getEnv().getKotlin().getVersion());
-				buildProperties.getMaven().put("kotlin.compiler.incremental", () -> "true");
+						() -> kotlinVersion);
 			}
 		}
 	}
 
 	private void resolveBom(InitializrMetadata metadata, String bomId,
 			Version requestedVersion) {
-		boms.computeIfAbsent(bomId, key -> {
-			BillOfMaterials bom = metadata.getConfiguration().getEnv().getBoms().get(key)
+		if (!boms.containsKey(bomId)) {
+			BillOfMaterials bom = metadata.getConfiguration().getEnv().getBoms().get(bomId)
 					.resolve(requestedVersion);
 			bom.getAdditionalBoms()
 					.forEach(id -> resolveBom(metadata, id, requestedVersion));
-			return bom;
-		});
+			boms.put(bomId, bom);
+		}
 	}
 
 	/**
